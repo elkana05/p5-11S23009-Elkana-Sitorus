@@ -74,17 +74,27 @@
                     <h5 class="card-title mb-0"><i class="bi bi-pie-chart-fill me-2"></i>Proporsi Keuangan</h5>
                 </div>
                 <div class="card-body">
-                    <div wire:ignore id="financial-pie-chart"></div>
+                    {{-- Menggunakan Alpine.js untuk inisialisasi chart yang andal --}}
+                    <div wire:ignore x-data="chartComponent(@js($totalIncome), @js($totalExpense))"
+                        x-init="initChart(pieChart, $el)"
+                        @update-charts.window="updateChart($event, pieChart, $el)">
+                        <div id="financial-pie-chart"></div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-lg-6">
-            <div class="card bg-dark-subtle mb-4">
+            <div class="card bg-dark-subtle mb-4" wire:ignore>
                 <div class="card-header">
                     <h5 class="card-title mb-0"><i class="bi bi-bar-chart-line-fill me-2"></i>Perbandingan Keuangan</h5>
                 </div>
                 <div class="card-body">
-                    <div wire:ignore id="financial-bar-chart"></div>
+                    {{-- Menggunakan Alpine.js untuk inisialisasi chart yang andal --}}
+                    <div wire:ignore x-data="chartComponent(@js($totalIncome), @js($totalExpense))"
+                        x-init="initChart(barChart, $el)"
+                        @update-charts.window="updateChart($event, barChart, $el)">
+                        <div id="financial-bar-chart"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -245,125 +255,90 @@
             });
         });
 
-        let pieChart;
-        let barChart;
-
-        // Listener yang dijalankan setiap kali halaman ini dimuat (termasuk via wire:navigate)
-        document.addEventListener("livewire:navigated", () => {
-            // --- Inisialisasi Chart ---
-            function initCharts() {
-                // Fungsi untuk inisialisasi atau update pie chart
-                function initPieChart(income, expense) {
-                    const pieChartEl = document.querySelector("#financial-pie-chart");
-                    if (!pieChartEl) {
-                        console.warn('Pie chart element not found. Skipping initialization.');
-                        return;
-                    }
-
-                    const seriesData = [Number(income) || 0, Number(expense) || 0];
-                    const chartOptions = {
-                        series: seriesData,
-                        chart: { type: 'pie', height: 350 },
-                        labels: ['Pemasukan', 'Pengeluaran'],
-                        colors: ['#198754', '#dc3545'],
-                        tooltip: {
-                            y: {
-                                formatter: function(val) {
-                                    return "Rp " + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-                                }
-                            }
-                        },
-                        dataLabels: {
-                            formatter: function(val, opts) {
-                                const seriesValue = opts.w.globals.series[opts.seriesIndex];
-                                return "Rp " + seriesValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-                            }
-                        },
-                        responsive: [{
-                            breakpoint: 480,
-                            options: {
-                                chart: { width: '100%' },
-                                legend: { position: 'bottom' }
-                            }
-                        }]
-                    };
-
-                    if (pieChart) pieChart.destroy();
-                    pieChart = new ApexCharts(pieChartEl, chartOptions);
-                    pieChart.render();
+        // Fungsi komponen Alpine.js yang dapat digunakan kembali untuk chart
+        window.chartComponent = function(initialIncome, initialExpense) {
+            return {
+                income: initialIncome,
+                expense: initialExpense,
+                initChart(chartFunction, el) {
+                    this.$nextTick(() => {
+                        chartFunction(el, this.income, this.expense);
+                    });
+                },
+                updateChart(event, chartFunction, el) {
+                    this.income = event.detail.totalIncome;
+                    this.expense = event.detail.totalExpense;
+                    chartFunction(el, this.income, this.expense);
                 }
+            }
+        }
 
-                // Fungsi untuk inisialisasi atau update bar chart
-                function initBarChart(income, expense) {
-                    const barChartEl = document.querySelector("#financial-bar-chart");
-                    if (!barChartEl) {
-                        console.warn('Bar chart element not found. Skipping initialization.');
-                        return;
-                    }
+        // Fungsi untuk Pie Chart (didefinisikan secara global)
+        window.pieChart = function(container, income, expense) {
+            let chartEl = container.querySelector('#financial-pie-chart');
+            if (chartEl.chart) chartEl.chart.destroy();
 
-                    // Tentukan warna teks berdasarkan tema yang aktif
-                    const currentTheme = localStorage.getItem('theme') || 'dark';
-                    const textColor = currentTheme === 'dark' ? '#f8f9fa' : '#373d3f';
-                    const barChartOptions = {
-                        series: [{
-                            name: 'Jumlah',
-                            data: [Number(income) || 0, Number(expense) || 0]
-                        }],
-                        chart: { type: 'bar', height: 350 },
-                        plotOptions: {
-                            bar: {
-                                horizontal: false,
-                                columnWidth: '55%',
-                                distributed: true,
-                            },
-                        },
-                        dataLabels: { enabled: false },
-                        colors: ['#198754', '#dc3545'],
-                        xaxis: { categories: ['Pemasukan', 'Pengeluaran'] },
-                        theme: {
-                            mode: currentTheme
-                        },
-                        yaxis: {
-                            labels: {
-                                formatter: (val) => "Rp " + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."),
-                                style: {
-                                    colors: textColor
-                                }
-                            }
-                        },
-                        xaxis: {
-                            categories: ['Pemasukan', 'Pengeluaran'],
-                            labels: { style: { colors: textColor } }
-                        },
-                        legend: { show: false },
-                        tooltip: {
-                            y: {
-                                formatter: (val) => "Rp " + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")
-                            }
-                        }
-                    };
+            const options = {
+                series: [Number(income) || 0, Number(expense) || 0],
+                chart: { type: 'pie', height: 350 },
+                labels: ['Pemasukan', 'Pengeluaran'],
+                colors: ['#198754', '#dc3545'],
+                tooltip: { y: { formatter: (val) => "Rp " + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") } },
+                dataLabels: { formatter: (val, opts) => "Rp " + opts.w.globals.series[opts.seriesIndex].toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") },
+                responsive: [{ breakpoint: 480, options: { chart: { width: '100%' }, legend: { position: 'bottom' } } }]
+            };
+            const chart = new ApexCharts(chartEl, options);
+            chart.render();
+            chartEl.chart = chart;
+        }
 
-                    if (barChart) barChart.destroy();
-                    barChart = new ApexCharts(barChartEl, barChartOptions);
-                    barChart.render();
-                }
-                // Inisialisasi pertama kali saat halaman dimuat
-                initPieChart(@js($totalIncome), @js($totalExpense));
-                initBarChart(@js($totalIncome), @js($totalExpense));
+        // Fungsi untuk Bar Chart (didefinisikan secara global)
+        window.barChart = function(container, income, expense) {
+            let chartEl = container.querySelector('#financial-bar-chart');
+            if (chartEl.chart) chartEl.chart.destroy();
 
-                // Listener untuk memperbarui chart saat data berubah dari Livewire
-                Livewire.on('update-charts', (event) => {
-                    const income = Array.isArray(event) ? event[0].totalIncome : event.totalIncome;
-                    const expense = Array.isArray(event) ? event[0].totalExpense : event.totalExpense;
-                    const newSeriesData = [Number(income) || 0, Number(expense) || 0];
+            const getOptions = (income, expense) => {
+                const currentTheme = localStorage.getItem('theme') || 'dark';
+                const textColor = currentTheme === 'dark' ? '#f8f9fa' : '#373d3f';
+                return {
+                    series: [{ name: 'Jumlah', data: [Number(income) || 0, Number(expense) || 0] }],
+                    chart: { type: 'bar', height: 350 },
+                    plotOptions: { bar: { horizontal: false, columnWidth: '55%', distributed: true } },
+                    dataLabels: { enabled: false },
+                    colors: ['#198754', '#dc3545'],
+                    theme: { mode: currentTheme },
+                    yaxis: { labels: { formatter: (val) => "Rp " + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."), style: { colors: textColor } } },
+                    xaxis: { categories: ['Pemasukan', 'Pengeluaran'], labels: { style: { colors: textColor } } },
+                    legend: { show: false },
+                    tooltip: { y: { formatter: (val) => "Rp " + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") } }
+                };
+            };
 
-                    if (pieChart && barChart) { // Line chart tidak diupdate oleh filter ini
-                        pieChart.updateSeries(newSeriesData, true);
-                        barChart.updateSeries([{ data: newSeriesData }], true);
-                    }
-                });
+            const chart = new ApexCharts(chartEl, getOptions(income, expense));
+            chart.render();
+            chartEl.chart = chart;
+
+            // Hapus listener lama sebelum menambahkan yang baru untuk mencegah duplikasi
+            if (chartEl.themeListener) {
+                document.removeEventListener('theme-changed', chartEl.themeListener);
             }
 
+            // Listener untuk tema, spesifik untuk chart ini
+            chartEl.themeListener = () => {
+                const currentTheme = localStorage.getItem('theme') || 'dark';
+                const textColor = currentTheme === 'dark' ? '#f8f9fa' : '#373d3f';
+                chart.updateOptions({
+                    theme: { mode: currentTheme },
+                    yaxis: { labels: { style: { colors: textColor } } },
+                    xaxis: { labels: { style: { colors: textColor } } }
+                });
+            };
+
+            document.addEventListener('theme-changed', chartEl.themeListener);
+        }
+
+        // Listener yang dijalankan setiap kali halaman ini dimuat
+        document.addEventListener("livewire:navigated", () => {
             // --- Inisialisasi Pengalih Tema ---
             function initThemeSwitcher() {
                 const themeToggleBtn = document.getElementById('theme-toggle');
@@ -391,13 +366,12 @@
                 themeToggleBtn.addEventListener('click', () => {
                     const newTheme = htmlElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
                     applyTheme(newTheme);
-                    @this.dispatch('theme-changed');
+                    document.dispatchEvent(new CustomEvent('theme-changed'));
                 });
             }
 
             // Jalankan semua inisialisasi
-            initCharts();
-            initThemeSwitcher();
+            initThemeSwitcher(); // Theme switcher bisa ada di halaman lain
         });
     </script>
     @endscript

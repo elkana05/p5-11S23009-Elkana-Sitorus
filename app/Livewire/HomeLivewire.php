@@ -61,9 +61,18 @@ class HomeLivewire extends Component
         $this->resetPage();
     }
 
+    // Lifecycle hook untuk menangani perubahan pada filter tanggal
+    public function updated($property)
+    {
+        if ($property === 'startDate' || $property === 'endDate') {
+            $this->updateChartData();
+        }
+    }
+
     public function resetDateFilter()
     {
         $this->reset('startDate', 'endDate');
+        $this->updateChartData(); // Tambahkan ini untuk update chart saat filter direset
     }
 
     public function addTodo()
@@ -91,6 +100,8 @@ class HomeLivewire extends Component
             'title' => 'Berhasil!',
             'message' => 'Catatan keuangan berhasil ditambahkan.',
         ]);
+
+        $this->updateChartData();
     }
 
     public function prepareEditTodo($todoId)
@@ -131,6 +142,8 @@ class HomeLivewire extends Component
             'title' => 'Berhasil!',
             'message' => 'Catatan keuangan berhasil diperbarui.',
         ]);
+
+        $this->updateChartData();
     }
 
     public function prepareDeleteTodo($todoId)
@@ -159,6 +172,8 @@ class HomeLivewire extends Component
                     'title' => 'Berhasil!',
                     'message' => 'Catatan keuangan berhasil dihapus.',
                 ]);
+
+                $this->updateChartData();
             } else {
                 // $this->addError('deleteTodoConfirmTitle', 'Konfirmasi judul tidak sesuai.');
                 $this->dispatch('show-alert', [
@@ -170,18 +185,19 @@ class HomeLivewire extends Component
         }
     }
 
+    public function updateChartData()
+    {
+        $query = $this->getFilteredBaseQuery();
+        // Kirim event ke browser untuk update chart dengan data terbaru
+        $this->dispatch('update-charts', [
+            'totalIncome' => (clone $query)->where('type', 1)->sum('amount'),
+            'totalExpense' => (clone $query)->where('type', 0)->sum('amount'),
+        ]);
+    }
     public function render()
     {
-        // Query dasar untuk semua data pengguna
-        $query = Todo::where('user_id', $this->auth->id);
-
-        // Terapkan filter tanggal jika ada
-        if ($this->startDate) {
-            $query->whereDate('created_at', '>=', $this->startDate);
-        }
-        if ($this->endDate) {
-            $query->whereDate('created_at', '<=', $this->endDate);
-        }
+        // Dapatkan query dasar yang sudah difilter tanggal
+        $query = $this->getFilteredBaseQuery();
 
         // Hitung total pemasukan dan pengeluaran berdasarkan query yang sudah difilter
         $totalIncome = (clone $query)->where('type', 1)->sum('amount');
@@ -202,13 +218,7 @@ class HomeLivewire extends Component
             $recordsQuery->where('type', $this->filterType);
         }
         $records = $recordsQuery->latest()->paginate(20);
-
-        // Kirim event ke browser untuk update chart
-        $this->dispatch('update-charts', [
-            'totalIncome' => $totalIncome,
-            'totalExpense' => $totalExpense,
-        ]);
-
+        
         return view('livewire.home-livewire', [
             'records' => $records,
             'balance' => $balance,
@@ -216,5 +226,19 @@ class HomeLivewire extends Component
             'totalExpense' => $totalExpense,
             'theme' => session('theme', 'dark'), // Kirim tema ke view
         ]);
+    }
+
+    private function getFilteredBaseQuery()
+    {
+        $query = Todo::where('user_id', $this->auth->id);
+
+        if ($this->startDate) {
+            $query->whereDate('created_at', '>=', $this->startDate);
+        }
+        if ($this->endDate) {
+            $query->whereDate('created_at', '<=', $this->endDate);
+        }
+
+        return $query;
     }
 }
